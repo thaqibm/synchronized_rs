@@ -58,7 +58,8 @@ pub mod counter {
         }
 
         pub fn inc(&mut self, tid: usize) {
-            let val = self.sub_counters[tid].0.fetch_add(1, SeqCst);
+            let res = self.sub_counters[tid].0.fetch_add(1, SeqCst);
+            let val = res + 1;
             if val >= cmp::max(Counter::LIMIT, Counter::C * self.num_threads) {
                 // flush to global_count
                 self.global_count.fetch_add(val, SeqCst);
@@ -83,6 +84,9 @@ pub mod counter {
         }
     }
 
+    // Safe to share counter bewteen threads
+    unsafe impl Sync for Counter {}
+    unsafe impl Send for Counter {}
 
     #[test]
     fn type_sizes(){
@@ -123,8 +127,28 @@ pub mod counter {
         });
 
         assert_eq!(counter.getAccurate(), init + MAX_THREADS as u64);
-
     }
 
-    
+    #[test]
+    fn test_limit(){
+        use super::counter::Counter;
+        let mut counter = Counter::new(MAX_THREADS as u64);
+        let limit = Counter::LIMIT;
+
+        (0..MAX_THREADS).for_each(|i|{
+            (0..limit - 1).for_each(|_| {
+                counter.inc(i);
+            });
+        });
+
+        assert_eq!(counter.get(), 0);
+
+        // this should flush one sub counter
+        assert_eq!(999, counter.sub_counters[0].0.load(SeqCst));
+        counter.inc(0);
+        assert_eq!(0, counter.sub_counters[0].0.load(SeqCst));
+        assert_eq!(counter.get(), limit);
+        assert_eq!(counter.getAccurate(), (MAX_THREADS as u64)*(limit - 1) + 1);
+    }
+
 }
