@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 konst = "0.3.5"
 arr_macro = "0.2.1"
+rayon = "1.7.0"
 

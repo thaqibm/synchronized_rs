@@ -57,7 +57,7 @@ pub mod counter {
             self.global_count.load(SeqCst)
         }
 
-        pub fn inc(&mut self, tid: usize) {
+        pub fn inc(&self, tid: usize) {
             let res = self.sub_counters[tid].0.fetch_add(1, SeqCst);
             let val = res + 1;
             if val >= cmp::max(Counter::LIMIT, Counter::C * self.num_threads) {
@@ -67,14 +67,14 @@ pub mod counter {
             }
         }
 
-        pub fn set(&mut self, val: u64) {
+        pub fn set(&self, val: u64) {
             self.global_count.store(val, SeqCst);
             for counter in &self.sub_counters{
                 counter.0.store(0, SeqCst);
             }
         }
 
-        pub fn getAccurate(&self) -> u64{
+        pub fn get_accurate(&self) -> u64{
             let subcnt = self.sub_counters.iter().
                 fold(0, |acc, counter|{
                     let cnt = counter.0.load(SeqCst);
@@ -117,7 +117,7 @@ pub mod counter {
         // each sub counter has count 1
         assert_eq!(counter.get(), 0);
 
-        assert_eq!(counter.getAccurate(), MAX_THREADS as u64);
+        assert_eq!(counter.get_accurate(), MAX_THREADS as u64);
 
         let init = 20;
         counter.set(init);
@@ -126,14 +126,14 @@ pub mod counter {
             counter.inc(i);
         });
 
-        assert_eq!(counter.getAccurate(), init + MAX_THREADS as u64);
+        assert_eq!(counter.get_accurate(), init + MAX_THREADS as u64);
     }
 
     #[test]
     fn test_limit(){
         use super::counter::Counter;
         let mut counter = Counter::new(MAX_THREADS as u64);
-        let limit = Counter::LIMIT;
+        let limit = std::cmp::max(Counter::LIMIT, Counter::C * MAX_THREADS as u64);
 
         (0..MAX_THREADS).for_each(|i|{
             (0..limit - 1).for_each(|_| {
@@ -144,11 +144,66 @@ pub mod counter {
         assert_eq!(counter.get(), 0);
 
         // this should flush one sub counter
-        assert_eq!(999, counter.sub_counters[0].0.load(SeqCst));
+        assert_eq!(limit - 1, counter.sub_counters[0].0.load(SeqCst));
         counter.inc(0);
         assert_eq!(0, counter.sub_counters[0].0.load(SeqCst));
         assert_eq!(counter.get(), limit);
-        assert_eq!(counter.getAccurate(), (MAX_THREADS as u64)*(limit - 1) + 1);
+        assert_eq!(counter.get_accurate(), (MAX_THREADS as u64)*(limit - 1) + 1);
+    }
+
+    #[test]
+    fn test_multithread(){
+        use super::counter::*;
+        let counter = Counter::new(MAX_THREADS as u64);
+        let limit = std::cmp::max(Counter::LIMIT, Counter::C * MAX_THREADS as u64);
+        (0..MAX_THREADS).for_each(|tid| {
+            std::thread::scope(|s| {
+                s.spawn(|| {
+                    (0..limit - 1).for_each(|_| {
+                        counter.inc(tid);
+                    });
+                });
+            });
+        });
+
+        assert_eq!(counter.get(), 0);
+        (0..MAX_THREADS).for_each(|tid| {
+            std::thread::scope(|s| {
+                s.spawn(|| {
+                    counter.inc(tid);
+                });
+            });
+        });
+        assert_eq!(counter.get(), (MAX_THREADS as u64) * limit);
+    }
+
+    #[test]
+    fn test_rayon(){
+        use rayon::prelude::*;
+        let counter = Counter::new(MAX_THREADS as u64);
+        let limit = std::cmp::max(Counter::LIMIT, Counter::C * MAX_THREADS as u64);
+        let tids = (0..MAX_THREADS).collect::<Vec<_>>();
+        tids.par_iter()
+            .for_each(|&tid| {
+                (0..limit - 1).for_each(|_| {
+                    counter.inc(tid);
+                });
+            });
+        assert_eq!(counter.get(), 0);
+        tids.par_iter().for_each(|&tid| {
+            counter.inc(tid);
+        });
+        assert_eq!(counter.get(), (MAX_THREADS as u64) * limit);
+
+        tids.par_iter()
+            .for_each(|&tid| {
+                for _ in 0..(3*limit) {
+                    counter.inc(tid);
+                }
+            });
+
+        let exp = (MAX_THREADS as u64) * limit + (MAX_THREADS as u64)*limit*3;
+        assert_eq!(counter.get_accurate(), exp);
     }
 
 }
