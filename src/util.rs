@@ -306,6 +306,7 @@ pub mod try_lock{
 
 }
 
+/*
 pub mod intrinsics {
     extern "C" {
         #[link_name = "llvm.x86.xbegin"]
@@ -321,4 +322,4 @@ pub mod intrinsics {
         pub fn xtest() -> i32;
     }
 }
-
+*/

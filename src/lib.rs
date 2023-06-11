@@ -1,5 +1,3 @@
-#![feature(link_llvm_intrinsics)]
-
 use std::{cell::UnsafeCell, mem::MaybeUninit, ptr};
 
 pub mod util;
