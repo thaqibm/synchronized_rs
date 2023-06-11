@@ -101,6 +101,17 @@ pub mod counter {
     }
 
     #[test]
+    fn type_padding(){
+        let paddedarr = [AtomicU64Padded::new(0), AtomicU64Padded::new(1)];
+        let a1 = &paddedarr[0].0 as *const AtomicU64 as usize;
+        let a2 = &paddedarr[1].0 as *const AtomicU64 as usize;
+
+        assert!(a2 - a1 >= 64);
+        assert_eq!(a1%64, 0);
+        assert_eq!(a2%64, 0);
+    }
+
+    #[test]
     fn test_init(){
         let counter = Counter::new(10);
         assert_eq!(counter.get(), 0);
@@ -212,10 +223,9 @@ pub mod counter {
 pub mod try_lock{
     use std::{sync::atomic::AtomicU64};
     use std::sync::atomic::Ordering::SeqCst;
-    use std::{cmp, time};
+    use std::{time, cmp};
 
-
-    struct TryLock{
+    pub struct TryLock{
         state: AtomicU64, // last bit tells if lock is held. rest of the bits are for counting 
     }
 
@@ -294,5 +304,21 @@ pub mod try_lock{
         assert_eq!(lock.acquire_count(), 10);
     }
 
+}
+
+pub mod intrinsics {
+    extern "C" {
+        #[link_name = "llvm.x86.xbegin"]
+        pub fn xbegin() -> i32;
+
+        #[link_name = "llvm.x86.xend"]
+        pub fn xend() -> ();
+
+        #[link_name = "llvm.x86.xabort"]
+        pub fn xabort(a: i8) -> ();
+
+        #[link_name = "llvm.x86.xtest"]
+        pub fn xtest() -> i32;
+    }
 }
 
