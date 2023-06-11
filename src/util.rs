@@ -210,9 +210,10 @@ pub mod counter {
 
 
 pub mod try_lock{
-    use std::{sync::atomic::AtomicU64, convert::TryInto};
+    use std::{sync::atomic::AtomicU64};
     use std::sync::atomic::Ordering::SeqCst;
-    use std::cmp;
+    use std::{cmp, time};
+
 
     struct TryLock{
         state: AtomicU64, // last bit tells if lock is held. rest of the bits are for counting 
@@ -234,7 +235,14 @@ pub mod try_lock{
             }
         }
 
+        pub fn acquire(&self) {
+            while !self.try_acquire() {
+                std::hint::spin_loop();
+            }
+        }
+
         pub fn release(&self){
+            assert!(self.is_held());
             self.state.fetch_add(1, SeqCst);
         }
 
@@ -246,5 +254,45 @@ pub mod try_lock{
             self.state.load(SeqCst) >> 1
         }
     }
+
+    #[test]
+    fn init_test(){
+        let lock = TryLock::new();
+        assert!(!lock.is_held());
+        lock.acquire();
+        assert!(lock.is_held());
+    }
+
+    #[test]
+    fn test_multithread(){
+        let lock = TryLock::new();
+        std::thread::scope(|s|{
+            for _ in 0..32 {
+                s.spawn(|| {
+                    lock.acquire();
+                    std::thread::sleep(time::Duration::from_millis(100));
+                    lock.release();
+                });
+            }
+        });
+
+        assert!(!lock.is_held());
+        assert_eq!(lock.acquire_count(), 32);
+    }
+
+    #[test]
+    fn test_rayon(){
+        use rayon::prelude::*;
+        let lock = TryLock::new();
+        [0; 10].par_iter()
+        .for_each(|_|{
+                lock.acquire();
+                std::thread::sleep(time::Duration::from_millis(100));
+                lock.release();
+        });
+        assert!(!lock.is_held());
+        assert_eq!(lock.acquire_count(), 10);
+    }
+
 }
 
