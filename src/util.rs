@@ -84,7 +84,7 @@ pub mod counter {
         }
     }
 
-    // Safe to share counter bewteen threads
+    //SAFETY: Safe to share counter bewteen threads
     unsafe impl Sync for Counter {}
     unsafe impl Send for Counter {}
 
@@ -108,7 +108,7 @@ pub mod counter {
 
     #[test]
     fn test_inc(){
-        let mut counter = Counter::new(10);
+        let counter = Counter::new(10);
 
         (0..MAX_THREADS).for_each(|i|{
             counter.inc(i);
@@ -132,7 +132,7 @@ pub mod counter {
     #[test]
     fn test_limit(){
         use super::counter::Counter;
-        let mut counter = Counter::new(MAX_THREADS as u64);
+        let counter = Counter::new(MAX_THREADS as u64);
         let limit = std::cmp::max(Counter::LIMIT, Counter::C * MAX_THREADS as u64);
 
         (0..MAX_THREADS).for_each(|i|{
@@ -207,3 +207,44 @@ pub mod counter {
     }
 
 }
+
+
+pub mod try_lock{
+    use std::{sync::atomic::AtomicU64, convert::TryInto};
+    use std::sync::atomic::Ordering::SeqCst;
+    use std::cmp;
+
+    struct TryLock{
+        state: AtomicU64, // last bit tells if lock is held. rest of the bits are for counting 
+    }
+
+    impl TryLock {
+        pub fn new() -> Self {
+            TryLock { state: AtomicU64::new(0) }
+        }
+
+        pub fn try_acquire(&self) -> bool {
+            // TODO: Change the SeqCst
+            let read = self.state.load(SeqCst);
+            if (read&1) != 0 {
+                false
+            }
+            else {
+                self.state.compare_exchange_weak(read, read|1, SeqCst, SeqCst).is_ok()
+            }
+        }
+
+        pub fn release(&self){
+            self.state.fetch_add(1, SeqCst);
+        }
+
+        pub fn is_held(&self) -> bool{
+            (self.state.load(SeqCst) & 1) != 0
+        }
+
+        pub fn acquire_count(&self) -> u64 {
+            self.state.load(SeqCst) >> 1
+        }
+    }
+}
+
