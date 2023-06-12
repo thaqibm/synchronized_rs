@@ -306,20 +306,3 @@ pub mod try_lock{
 
 }
 
-/*
-pub mod intrinsics {
-    extern "C" {
-        #[link_name = "llvm.x86.xbegin"]
-        pub fn xbegin() -> i32;
-
-        #[link_name = "llvm.x86.xend"]
-        pub fn xend() -> ();
-
-        #[link_name = "llvm.x86.xabort"]
-        pub fn xabort(a: i8) -> ();
-
-        #[link_name = "llvm.x86.xtest"]
-        pub fn xtest() -> i32;
-    }
-}
-*/
