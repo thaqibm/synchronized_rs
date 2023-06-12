@@ -73,9 +73,11 @@ pub mod rtm {
                 assert!(!res);
             }
         }
-        runrtm();
-        runrtm();
-        runrtm();
-        runrtm();
+        if htm_supported_runtime() {
+            runrtm();
+            runrtm();
+            runrtm();
+            runrtm();
+        }
     }
 }
