@@ -66,7 +66,7 @@ pub mod rtm {
             let mut res = false;
             if _xbegin() == _XBEGIN_STARTED {
                 res = _xtest();
-                xend();
+                _xend();
                 assert!(res);
             }
             else {
