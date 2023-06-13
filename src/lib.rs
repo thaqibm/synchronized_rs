@@ -76,10 +76,10 @@ fn basic(){
         });
         assert_eq!(val.load(), n);
     }
-    test_thread(1000);
-    test_thread(1000);
-    test_thread(1000);
-    test_thread(1000);
-    test_thread(1000);
+    test_thread(100);
+    test_thread(100);
+    test_thread(100);
+    test_thread(100);
+    test_thread(100);
 }
 

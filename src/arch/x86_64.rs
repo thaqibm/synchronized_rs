@@ -64,20 +64,24 @@ pub mod rtm {
     fn rtmtest() {
         fn runrtm(){
             let mut res = false;
-            if _xbegin() == _XBEGIN_STARTED {
-                res = _xtest();
-                _xend();
-                assert!(res);
-            }
-            else {
-                assert!(!res);
+            unsafe {
+                if _xbegin() == _XBEGIN_STARTED {
+                    res = _xtest();
+                    _xend();
+                    assert!(res);
+                }
+                else {
+                    assert!(!res);
+                }
             }
         }
         if htm_supported_runtime() {
-            runrtm();
-            runrtm();
-            runrtm();
-            runrtm();
+            unsafe {
+                runrtm();
+                runrtm();
+                runrtm();
+                runrtm();
+            }
         }
     }
 }
