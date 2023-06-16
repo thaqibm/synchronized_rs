@@ -1,4 +1,4 @@
-use std::{cell::UnsafeCell, mem::MaybeUninit, ptr};
+use std::{ptr::{self, NonNull}, ops::Deref, cell::UnsafeCell};
 
 pub mod util;
 pub mod arch;
@@ -18,40 +18,87 @@ macro_rules! synchronized {
 
 // TODO: Move this to another file
 
-pub struct SyncCellUnsafe<T> {
-    value: UnsafeCell<MaybeUninit<T>>
+#[derive(Debug)]
+struct SPtrInner<T: ?Sized> {
+    data: UnsafeCell<T>
+}
+unsafe impl<T: ?Sized + Send> Send for SPtrInner<T> {}
+unsafe impl<T: ?Sized + Send> Sync for SPtrInner<T> {}
+
+
+
+#[derive(Debug, Clone)]
+pub struct SPtr<T: ?Sized> {
+    inner: NonNull<SPtrInner<T>>,
 }
 
-unsafe impl<T: Send> Send for SyncCellUnsafe<T> {}
-unsafe impl<T: Send> Sync for SyncCellUnsafe<T> {}
+unsafe impl<T: ?Sized + Send> Send for SPtr<T> {}
+unsafe impl<T: ?Sized + Send> Sync for SPtr<T> {}
 
-impl<T> SyncCellUnsafe<T> {
-    pub const fn new(val: T) -> Self {
-        Self {
-            value: UnsafeCell::new(MaybeUninit::new(val)),
+impl<T: ?Sized> SPtr<T>  {
+    unsafe fn from_inner(inner: NonNull<SPtrInner<T>>) -> Self {
+        Self { inner }
+    }
+
+    unsafe fn from_ptr(ptr: *mut SPtrInner<T>) -> Self {
+        Self::from_inner(NonNull::new_unchecked(ptr)) 
+    }
+    #[inline]
+    fn inner(&self) -> &SPtrInner<T> {
+        unsafe {
+            self.inner.as_ref()
         }
     }
+}
+
+impl<T> SPtr<T> {
+    pub fn new(val: T) -> Self {
+        let x = Box::new(SPtrInner{ 
+            data: UnsafeCell::new(val)
+        });
+        unsafe {
+            Self::from_ptr(Box::into_raw(x))
+        }
+    }
+
     pub fn store(&self, val: T) {
         unsafe {
-          ptr::write(self.as_ptr(), val)
-        } 
+            let x = self.inner().data.get();
+            std::ptr::write(x, val);
+        }
     }
     pub fn swap(&self, val: T) -> T {
         unsafe {
-            ptr::replace(self.as_ptr(), val)
+            ptr::replace(self.inner().data.get(), val)
         }
     }
-    
-    #[inline]
-    pub fn as_ptr(&self) -> *mut T {
-        self.value.get().cast::<T>()
-    }
-
 }
 
-impl<T: Copy> SyncCellUnsafe<T> {
+impl<T: Copy> SPtr<T> {
     pub fn load(&self) -> T {
-        unsafe { ptr::read(self.as_ptr()) }
+        unsafe { 
+            *self.inner().data.get()
+        }
+    }
+}
+
+impl<T: ?Sized> Drop for SPtr<T> {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = Box::from_raw(self.inner.as_ptr()); 
+        }
+    }
+}
+
+impl<T: ?Sized> Deref for SPtr<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        unsafe {
+            &*self.inner().data.get()
+
+        }
     }
 }
 
