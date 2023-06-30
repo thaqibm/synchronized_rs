@@ -6,7 +6,7 @@ Blazingly Fast 🚀 Low level multithreading library in rust
 **Key Features**
 
 ### Distributed Multithreaded counter
-```{rs}
+```rust
 use rayon::prelude::*;
 use synchronized::util::*;
 
@@ -25,7 +25,7 @@ assert_eq!(counter.get_accurate(), 1000 * MAX_THREADS); // get_accurate returns 
 
 ### Versioned TryLock
 
-```{rs}
+```rust
 use synchronized::util::*;
 let lock = TryLock::new();
 std::thread::scope(|s|{
@@ -50,7 +50,7 @@ These features are unstable and there might be breaking changes in the future.
 
 ##### Intel Hardware Transactional memory intrinsics
 The crate provides intrinsics for ``x86_64`` RTM intrinsics.
-```{rs}
+```rust
 let mut res = false;
 unsafe {
     if _xbegin() == _XBEGIN_STARTED { // begin transaction
