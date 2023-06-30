@@ -219,7 +219,7 @@ pub struct TryLock{
 }
 
 impl TryLock {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         TryLock { state: AtomicU64::new(0) }
     }
 
