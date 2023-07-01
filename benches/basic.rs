@@ -53,8 +53,6 @@ fn synchronized_counter(per_thread: usize){
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("counters");
-    group.sample_size(10000);
-    group.sampling_mode(criterion::SamplingMode::Flat);
 
     for i in [1000u64, 10000u64, 100000u64, 1000000u64, 
         2000000u64,
