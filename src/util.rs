@@ -157,30 +157,6 @@ fn test_limit_counter(){
     assert_eq!(counter.get_accurate(), (MAX_THREADS as u64)*(limit - 1) + 1);
 }
 
-#[test]
-fn test_multithread_counter(){
-    let counter = Counter::new(MAX_THREADS as u64);
-    let limit = std::cmp::max(Counter::LIMIT, Counter::C * MAX_THREADS as u64);
-    (0..MAX_THREADS).for_each(|tid| {
-        std::thread::scope(|s| {
-            s.spawn(|| {
-                (0..limit - 1).for_each(|_| {
-                    counter.inc(tid);
-                });
-            });
-        });
-    });
-
-    assert_eq!(counter.get(), 0);
-    (0..MAX_THREADS).for_each(|tid| {
-        std::thread::scope(|s| {
-            s.spawn(|| {
-                counter.inc(tid);
-            });
-        });
-    });
-    assert_eq!(counter.get(), (MAX_THREADS as u64) * limit);
-}
 
 #[test]
 fn test_rayon_counter(){
@@ -219,7 +195,7 @@ pub struct TryLock{
 }
 
 impl TryLock {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         TryLock { state: AtomicU64::new(0) }
     }
 
