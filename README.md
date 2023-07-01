@@ -83,4 +83,10 @@ pub fn htm_supported_runtime() -> bool {
 }
 ```
 
+### Run Benchmarks
+To run benchmarks:
+```
+cargo bench
+```
+The html report will be at: ``target/criterion/report/index.html`` 
 
