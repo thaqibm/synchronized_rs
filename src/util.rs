@@ -13,7 +13,7 @@ pub const MAX_THREADS: usize = 32;
 const PADDING_BYTES: usize = 64;
 type Byte = i8;
 
-type PadBytes<const N: usize> = [Byte;  N];
+pub type PadBytes<const N: usize> = [Byte;  N];
 
 #[repr(C, align(64))]
 struct AtomicU64Padded(AtomicU64);
