@@ -14,12 +14,12 @@ fn atomic_int_counter(per_thread: usize){
         (0..MAX_THREADS).for_each(|_tid| {
             s.spawn(|| {
                 for _ in 0..per_thread  {
-                    counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 }
             });
         });
     });
-    assert!(counter.load(std::sync::atomic::Ordering::Relaxed) == (per_thread * MAX_THREADS) as u64)
+    assert!(counter.load(std::sync::atomic::Ordering::SeqCst) == (per_thread * MAX_THREADS) as u64)
 }
 
 fn mutex_counter(per_thread: usize){
