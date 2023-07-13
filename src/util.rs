@@ -8,7 +8,7 @@ todo!();
 
 pub const MAX_THREADS: usize = 32;
 
-const PADDING_BYTES: usize = 64;
+pub const PADDING_BYTES: usize = 64;
 type Byte = i8;
 
 pub type PadBytes<const N: usize> = [Byte; N];
@@ -75,6 +75,14 @@ impl Counter {
             acc + cnt
         });
         subcnt + self.global_count.load(SeqCst)
+    }
+}
+
+impl Clone for Counter {
+    fn clone(&self) -> Self {
+        let ret = Self::new(self.num_threads);
+        ret.set(self.get_accurate());
+        ret
     }
 }
 
