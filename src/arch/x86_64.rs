@@ -9,8 +9,7 @@ pub mod rtm {
     pub const _XABORT_NESTED: u32 = 1 << 5;
 
     #[inline(always)]
-    pub unsafe fn _xtest() -> bool
-    {
+    pub unsafe fn _xtest() -> bool {
         let result: u32;
         asm!(
             "xtest",
@@ -20,14 +19,11 @@ pub mod rtm {
         result == 1
     }
 
-
     #[allow(non_snake_case)]
     #[inline(always)]
-    pub fn _XABORT_CODE(_xbegin_return_code: u32) -> u8
-    {
+    pub fn _XABORT_CODE(_xbegin_return_code: u32) -> u8 {
         (_xbegin_return_code >> 24) as u8
     }
-
 
     #[inline(always)]
     pub unsafe fn _xabort<const N: u8>() -> ! {
@@ -62,15 +58,14 @@ pub mod rtm {
 
     #[test]
     fn rtmtest() {
-        fn runrtm(){
+        fn runrtm() {
             let mut res = false;
             unsafe {
                 if _xbegin() == _XBEGIN_STARTED {
                     res = _xtest();
                     _xend();
                     assert!(res);
-                }
-                else {
+                } else {
                     assert!(!res);
                 }
             }

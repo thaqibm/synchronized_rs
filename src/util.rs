@@ -1,7 +1,6 @@
-use std::{sync::atomic::AtomicU64, convert::TryInto};
-use std::sync::atomic::Ordering::SeqCst;
 use std::cmp;
-
+use std::sync::atomic::Ordering::SeqCst;
+use std::{convert::TryInto, sync::atomic::AtomicU64};
 
 // TODO: pass num-threads at compile
 #[cfg(feature = "max-threads")]
@@ -9,44 +8,44 @@ todo!();
 
 pub const MAX_THREADS: usize = 32;
 
-
-const PADDING_BYTES: usize = 64;
+pub const PADDING_BYTES: usize = 64;
 type Byte = i8;
 
-type PadBytes<const N: usize> = [Byte;  N];
+pub type PadBytes<const N: usize> = [Byte; N];
 
 #[repr(C, align(64))]
 struct AtomicU64Padded(AtomicU64);
 
 impl AtomicU64Padded {
-    pub fn new(val: u64) -> Self{
+    pub fn new(val: u64) -> Self {
         Self(AtomicU64::new(val))
     }
 }
 
-
 #[repr(C, align(64))]
-pub struct Counter{
+pub struct Counter {
     _padding0: PadBytes<PADDING_BYTES>,
     sub_counters: [AtomicU64Padded; MAX_THREADS],
     global_count: AtomicU64,
     _padding1: PadBytes<PADDING_BYTES>,
-    num_threads: u64
+    num_threads: u64,
 }
 impl Counter {
     const C: u64 = 10;
     const LIMIT: u64 = 1000;
 
-    pub fn new(num_threads: u64) -> Self{
-        Self { 
+    pub fn new(num_threads: u64) -> Self {
+        Self {
             _padding0: [0; PADDING_BYTES],
             sub_counters: (0..MAX_THREADS)
                 .map(|_| AtomicU64Padded::new(0))
                 .collect::<Vec<_>>()
-                .try_into().ok().unwrap(),
-            global_count: AtomicU64::new(0), 
+                .try_into()
+                .ok()
+                .unwrap(),
+            global_count: AtomicU64::new(0),
             _padding1: [0; PADDING_BYTES],
-            num_threads
+            num_threads,
         }
     }
     pub fn get(&self) -> u64 {
@@ -65,18 +64,25 @@ impl Counter {
 
     pub fn set(&self, val: u64) {
         self.global_count.store(val, SeqCst);
-        for counter in &self.sub_counters{
+        for counter in &self.sub_counters {
             counter.0.store(0, SeqCst);
         }
     }
 
-    pub fn get_accurate(&self) -> u64{
-        let subcnt = self.sub_counters.iter().
-            fold(0, |acc, counter|{
-                let cnt = counter.0.load(SeqCst);
-                acc + cnt
-            });
+    pub fn get_accurate(&self) -> u64 {
+        let subcnt = self.sub_counters.iter().fold(0, |acc, counter| {
+            let cnt = counter.0.load(SeqCst);
+            acc + cnt
+        });
         subcnt + self.global_count.load(SeqCst)
+    }
+}
+
+impl Clone for Counter {
+    fn clone(&self) -> Self {
+        let ret = Self::new(self.num_threads);
+        ret.set(self.get_accurate());
+        ret
     }
 }
 
@@ -85,9 +91,9 @@ unsafe impl Sync for Counter {}
 unsafe impl Send for Counter {}
 
 #[test]
-fn type_sizes(){
+fn type_sizes() {
     use std::mem::size_of;
-    let padbytes_size = size_of::<PadBytes<64>>();   
+    let padbytes_size = size_of::<PadBytes<64>>();
     assert_eq!(padbytes_size, 64);
 
     let paddedu64_size = size_of::<AtomicU64Padded>();
@@ -97,27 +103,27 @@ fn type_sizes(){
 }
 
 #[test]
-fn type_padding(){
+fn type_padding() {
     let paddedarr = [AtomicU64Padded::new(0), AtomicU64Padded::new(1)];
     let a1 = &paddedarr[0].0 as *const AtomicU64 as usize;
     let a2 = &paddedarr[1].0 as *const AtomicU64 as usize;
 
     assert!(a2 - a1 >= 64);
-    assert_eq!(a1%64, 0);
-    assert_eq!(a2%64, 0);
+    assert_eq!(a1 % 64, 0);
+    assert_eq!(a2 % 64, 0);
 }
 
 #[test]
-fn test_init(){
+fn test_init() {
     let counter = Counter::new(10);
     assert_eq!(counter.get(), 0);
 }
 
 #[test]
-fn test_inc(){
+fn test_inc() {
     let counter = Counter::new(10);
 
-    (0..MAX_THREADS).for_each(|i|{
+    (0..MAX_THREADS).for_each(|i| {
         counter.inc(i);
     });
 
@@ -129,7 +135,7 @@ fn test_inc(){
     let init = 20;
     counter.set(init);
 
-    (0..MAX_THREADS).for_each(|i|{
+    (0..MAX_THREADS).for_each(|i| {
         counter.inc(i);
     });
 
@@ -137,11 +143,11 @@ fn test_inc(){
 }
 
 #[test]
-fn test_limit_counter(){
+fn test_limit_counter() {
     let counter = Counter::new(MAX_THREADS as u64);
     let limit = std::cmp::max(Counter::LIMIT, Counter::C * MAX_THREADS as u64);
 
-    (0..MAX_THREADS).for_each(|i|{
+    (0..MAX_THREADS).for_each(|i| {
         (0..limit - 1).for_each(|_| {
             counter.inc(i);
         });
@@ -154,59 +160,59 @@ fn test_limit_counter(){
     counter.inc(0);
     assert_eq!(0, counter.sub_counters[0].0.load(SeqCst));
     assert_eq!(counter.get(), limit);
-    assert_eq!(counter.get_accurate(), (MAX_THREADS as u64)*(limit - 1) + 1);
+    assert_eq!(
+        counter.get_accurate(),
+        (MAX_THREADS as u64) * (limit - 1) + 1
+    );
 }
 
-
 #[test]
-fn test_rayon_counter(){
+fn test_rayon_counter() {
     use rayon::prelude::*;
     let counter = Counter::new(MAX_THREADS as u64);
     let limit = std::cmp::max(Counter::LIMIT, Counter::C * MAX_THREADS as u64);
     let tids = (0..MAX_THREADS).collect::<Vec<_>>();
-    tids.par_iter()
-        .for_each(|&tid| {
-            (0..limit - 1).for_each(|_| {
-                counter.inc(tid);
-            });
+    tids.par_iter().for_each(|&tid| {
+        (0..limit - 1).for_each(|_| {
+            counter.inc(tid);
         });
+    });
     assert_eq!(counter.get(), 0);
     tids.par_iter().for_each(|&tid| {
         counter.inc(tid);
     });
     assert_eq!(counter.get(), (MAX_THREADS as u64) * limit);
 
-    tids.par_iter()
-        .for_each(|&tid| {
-            for _ in 0..(3*limit) {
-                counter.inc(tid);
-            }
-        });
+    tids.par_iter().for_each(|&tid| {
+        for _ in 0..(3 * limit) {
+            counter.inc(tid);
+        }
+    });
 
-    let exp = (MAX_THREADS as u64) * limit + (MAX_THREADS as u64)*limit*3;
+    let exp = (MAX_THREADS as u64) * limit + (MAX_THREADS as u64) * limit * 3;
     assert_eq!(counter.get_accurate(), exp);
 }
 
-
-
-
-pub struct TryLock{
-    state: AtomicU64, // last bit tells if lock is held. rest of the bits are for counting 
+pub struct TryLock {
+    state: AtomicU64, // last bit tells if lock is held. rest of the bits are for counting
 }
 
 impl TryLock {
     pub const fn new() -> Self {
-        TryLock { state: AtomicU64::new(0) }
+        TryLock {
+            state: AtomicU64::new(0),
+        }
     }
 
     pub fn try_acquire(&self) -> bool {
         // TODO: Change the SeqCst
         let read = self.state.load(SeqCst);
-        if (read&1) != 0 {
+        if (read & 1) != 0 {
             false
-        }
-        else {
-            self.state.compare_exchange_weak(read, read|1, SeqCst, SeqCst).is_ok()
+        } else {
+            self.state
+                .compare_exchange_weak(read, read | 1, SeqCst, SeqCst)
+                .is_ok()
         }
     }
 
@@ -216,12 +222,12 @@ impl TryLock {
         }
     }
 
-    pub fn release(&self){
+    pub fn release(&self) {
         assert!(self.is_held());
         self.state.fetch_add(1, SeqCst);
     }
 
-    pub fn is_held(&self) -> bool{
+    pub fn is_held(&self) -> bool {
         (self.state.load(SeqCst) & 1) != 0
     }
 
@@ -231,7 +237,7 @@ impl TryLock {
 }
 
 #[test]
-fn init_test_trylock(){
+fn init_test_trylock() {
     let lock = TryLock::new();
     assert!(!lock.is_held());
     lock.acquire();
@@ -239,10 +245,10 @@ fn init_test_trylock(){
 }
 
 #[test]
-fn test_multithread_trylock(){
+fn test_multithread_trylock() {
     use std::time;
     let lock = TryLock::new();
-    std::thread::scope(|s|{
+    std::thread::scope(|s| {
         for _ in 0..32 {
             s.spawn(|| {
                 lock.acquire();
@@ -257,18 +263,15 @@ fn test_multithread_trylock(){
 }
 
 #[test]
-fn test_rayon_trylock(){
+fn test_rayon_trylock() {
     use rayon::prelude::*;
     use std::time;
     let lock = TryLock::new();
-    [0; 10].par_iter()
-        .for_each(|_|{
-            lock.acquire();
-            std::thread::sleep(time::Duration::from_millis(100));
-            lock.release();
-        });
+    [0; 10].par_iter().for_each(|_| {
+        lock.acquire();
+        std::thread::sleep(time::Duration::from_millis(100));
+        lock.release();
+    });
     assert!(!lock.is_held());
     assert_eq!(lock.acquire_count(), 10);
 }
-
-
